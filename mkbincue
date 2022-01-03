@@ -1,0 +1,39 @@
+#!/bin/bash
+
+set -e
+
+usage()
+{
+    echo "usage: mkbincue <CD-ROM device path> <output filename without extension>"
+    echo "example: mkbincue /dev/disk3 \"Sonic CD\""
+    echo "\nYou can find the device path with 'diskutil list' or by clicking in info button for the volume in 'Disk Utility.app'"
+}
+
+dependencies()
+{
+    for dep in diskutil cdrdao toc2cue
+    do
+        [[ $(which $dep 2>/dev/null) ]] || { echo -en "\n$dep is not installed."; deps=1; }
+    done
+    [[ $deps -ne 1 ]] || { echo -en "\nPlease install the listed dependencies.\n"; exit 1; }
+}
+
+if [[ $# -lt 2 ]]; then
+    usage
+    exit
+fi
+
+dependencies
+
+DEVICE_PATH=$1
+OUTPUT_FILE=$2
+FILENAME=`basename "$OUTPUT_FILE"`
+DIR=`dirname "$OUTPUT_FILE"`
+
+diskutil unmountDisk $DEVICE_PATH
+
+(cd "$DIR" && cdrdao read-cd --datafile "${FILENAME}.bin" --driver generic-mmc:0x20000 --read-raw "${FILENAME}.toc")
+toc2cue "${OUTPUT_FILE}.toc" "${OUTPUT_FILE}.cue" 2>/dev/null
+rm "${OUTPUT_FILE}.toc"
+
+diskutil mountDisk $DEVICE_PATH || 0
